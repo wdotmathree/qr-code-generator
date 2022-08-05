@@ -278,28 +278,26 @@ def mask(output, mask):
 
 def _evaluate1(output):
     penalty = 0
-    for i in range(output.shape[1]):
-        j = 0
-        k = 0
-        while k < output.shape[0]:
+    for i in range(4, output.shape[1] - 4):
+        j = 4
+        k = 4
+        while k < output.shape[0] - 4:
             if output[i][j] == output[i][k]:
-                penalty += 1
-                if k - j == 5:
+                if k - j == 4:
                     penalty += 3
-                elif k - j > 5:
+                elif k - j > 4:
                     penalty += 1
             else:
                 j = k
             k += 1
-    for i in range(output.shape[1]):
-        j = 0
-        k = 0
-        while k < output.shape[0]:
+    for i in range(4, output.shape[0] - 4):
+        j = 4
+        k = 4
+        while k < output.shape[1] - 4:
             if output[j][i] == output[k][i]:
-                penalty += 1
-                if k - j == 5:
+                if k - j == 4:
                     penalty += 3
-                elif k - j > 5:
+                elif k - j > 4:
                     penalty += 1
             else:
                 j = k
