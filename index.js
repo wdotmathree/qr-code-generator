@@ -30,6 +30,9 @@ http.createServer((req, res) => {
 			.on("end", () => {
 				res.end();
 			});
+		upstream.stderr.on("data", (chunk) => {
+			console.log(chunk.toString());
+		});
 	} else {
 		res.statusCode = 404;
 		res.end();
