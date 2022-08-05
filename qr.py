@@ -306,10 +306,9 @@ def _evaluate1(output):
 
 
 def _evaluate2(output):
-    kernel = np.array(((1, 1, 1, 1),))
-    temp = np.array(output)
-    cv2.filter2D(output, -1, kernel, temp)
-    return sum([sum([(0 if 0 < j < 4 else 3) for j in i]) for i in temp])
+    kernel = np.array(((1, 1), (1, 1)))
+    temp = cv2.filter2D(output[4:-4, 4:-4], -1, kernel, anchor=(0, 0))
+    return sum([sum([int(j % 4 == 0) for j in i]) for i in temp]) * 3
 
 
 def _evaluate3(output):
