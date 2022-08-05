@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<title>Terrible QR code encoder</title>
+		<script src="script.js" type="application/javascript"></script>
+	</head>
+
+	<body>
+		<form>
+			Content: <input autocomplete="off" id="content" type="text" />
+			<br />
+			Version: <input autocomplete="off" id="version" type="number" min="1" max="40" />
+			<br />
+			Error Correction Level:
+			<select id="ec">
+				<option name="L">L</option>
+				<option name="M">M</option>
+				<option name="Q">Q</option>
+				<option name="H">H</option>
+			</select>
+			<br />
+			<input type="submit" value="Generate" />
+		</form>
+		<br />
+		<canvas style="image-rendering: crisp-edges; border: 1px solid #ff00ff"></canvas>
+	</body>
+</html>
