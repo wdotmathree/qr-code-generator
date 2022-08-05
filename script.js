@@ -19,14 +19,16 @@ function main() {
 				for (let i = 0; i < Math.sqrt(text.length); i++) {
 					for (let j = 0; j < Math.sqrt(text.length); j++) {
 						let ctx = document.querySelector("canvas").getContext("2d");
-						if (text[i * Math.sqrt(text.length) + j] == "1") {
+						if (text[i * Math.sqrt(text.length) + j] == "0") {
+							ctx.fillStyle = "white";
+						} else if (text[i * Math.sqrt(text.length) + j] == "1") {
 							ctx.fillStyle = "black";
 						} else if (text[i * Math.sqrt(text.length) + j] == "2") {
 							ctx.fillStyle = "red";
 						} else if (text[i * Math.sqrt(text.length) + j] == "3") {
 							ctx.fillStyle = "blue";
 						} else {
-							ctx.fillStyle = "white";
+							ctx.fillStyle = "cyan";
 						}
 						ctx.fillRect(i * multiplier, j * multiplier, multiplier, multiplier);
 					}
