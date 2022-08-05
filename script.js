@@ -2,7 +2,7 @@ function main() {
 	document.querySelector("form").addEventListener("submit", (e) => {
 		e.preventDefault();
 		fetch(
-			new Request("/ws", {
+			new Request("/generate", {
 				method: "POST",
 				body: JSON.stringify({
 					content: document.getElementById("content").value,

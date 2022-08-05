@@ -1,5 +1,6 @@
 import json
-from math import floor, ceil
+import sys
+from math import ceil, floor
 
 import cv2
 import numpy as np
@@ -14,7 +15,7 @@ def bin_byte(b):
 
 
 def byte_bin(b):
-    bi = "{:0{l}b}".format(int.from_bytes(b, byteorder='big'), l=len(b) * 8)
+    bi = '{:0{l}b}'.format(int.from_bytes(b, byteorder='big'), l=len(b) * 8)
     return ''.join([bi[i:i + 8] for i in range(0, len(bi), 8)])
 
 
@@ -140,7 +141,7 @@ def ecc(content, version, ec):
     # blocks = [block + reed_solomon(block, specs[0]) for block in blocks]
     blocks = [byte_bin(reedsolo.RSCodec(specs[0]).encode(
         bin_byte(block))) for block in blocks]
-    content = ""
+    content = ''
     if specs[3] == 0:
         for _ in range(specs[2]):
             for i in range(specs[1]):
@@ -386,3 +387,12 @@ def generate_qr(content, version, ec):
         version_string(output, version)
     format_string(output, ec, test_mask(output, ec))
     return ''.join([''.join([str(int(j)) for j in i]) for i in output])
+
+
+def main():
+    args = json.load(sys.stdin)
+    print(generate_qr(args['content'], args['version'], args['ec']), end='')
+
+
+if __name__ == '__main__':
+    main()
