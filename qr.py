@@ -378,7 +378,6 @@ def generate_qr(content, version, ec):
     format_string(output, 'M', 0)
     if version >= 7:
         version_string(output, 0)
-    # place(output, '0000' * 584)
     place(output, content)
     if version >= 7:
         version_string(output, version)
