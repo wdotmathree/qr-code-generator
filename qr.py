@@ -329,9 +329,9 @@ def _evaluate3(output):
 
 
 def _evaluate4(output):
-    a = sum(sum(output)) / output.size * 100
-    b = abs(ceil(a / 5))
-    a = abs(floor(a / 5))
+    a = sum(sum(output)) / (output.shape[0] - 8)**2 * 100
+    b = ceil(a / 5) * 5
+    a = floor(a / 5) * 5
     a, b = abs(a - 50), abs(b - 50)
     a, b = a // 5, b // 5
     return min(a, b) * 10
