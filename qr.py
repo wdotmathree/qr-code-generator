@@ -314,17 +314,17 @@ def _evaluate2(output):
 def _evaluate3(output):
     penalty = 0
     kernel = np.array(((1, -1, 1, 1, 1, -1, 1, -1, -1, -1, -1),))
-    temp = np.array(output)
-    cv2.filter2D(output, -1, kernel, temp)
-    penalty += sum([sum([(j // 6) if j >= 0 else 0 for j in i]) for i in temp])
-    cv2.filter2D(output, -1, kernel[::-1], temp)
-    penalty += sum([sum([(j // 6) if j >= 0 else 0 for j in i]) for i in temp])
-    cv2.filter2D(
-        output, -1, kernel.reshape(kernel.shape[1], kernel.shape[0]), temp)
-    penalty += sum([sum([(j // 6) if j >= 0 else 0 for j in i]) for i in temp])
-    cv2.filter2D(
-        output, -1, kernel.reshape(kernel.shape[1], kernel.shape[0])[::-1], temp)
-    penalty += sum([sum([(j // 6) if j >= 0 else 0 for j in i]) for i in temp])
+    temp = cv2.filter2D(output[4:-4, 4:-4], -1, kernel, anchor=(0, 0))
+    penalty += sum([sum(i) for i in temp[:, :-4] // 5])
+    kernel = kernel[::-1]
+    temp = cv2.filter2D(output[4:-4, 4:-4], -1, kernel, anchor=(0, 0))
+    penalty += sum([sum(i) for i in temp[:, :-4] // 5])
+    kernel = kernel.reshape(kernel.shape[::-1])
+    temp = cv2.filter2D(output[4:-4, 4:-4], -1, kernel, anchor=(0, 0))
+    penalty += sum([sum(i) for i in temp[:-4, :] // 5])
+    kernel = kernel[::-1]
+    temp = cv2.filter2D(output[4:-4, 4:-4], -1, kernel, anchor=(0, 0))
+    penalty += sum([sum(i) for i in temp[:-4, :] // 5])
     return penalty * 40
 
 
