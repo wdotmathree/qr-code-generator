@@ -1,14 +1,17 @@
 function main() {
 	document.querySelector("form").addEventListener("submit", (e) => {
 		e.preventDefault();
+		let body = String.fromCharCode(
+			document.getElementById("version").value,
+			document.getElementById("ec").selectedIndex ^ 1,
+			document.getElementById("content").value.length >> 8,
+			document.getElementById("content").value.length & 0xff
+		);
+		body += document.getElementById("content").value;
 		fetch(
 			new Request("/generate", {
 				method: "POST",
-				body: JSON.stringify({
-					content: document.getElementById("content").value,
-					version: document.getElementById("version").value,
-					ec: document.getElementById("ec").selectedOptions[0].innerHTML,
-				}),
+				body: body,
 			})
 		).then((res) => {
 			res.text().then((text) => {
@@ -27,8 +30,10 @@ function main() {
 							ctx.fillStyle = "red";
 						} else if (text[i * Math.sqrt(text.length) + j] == "3") {
 							ctx.fillStyle = "blue";
-						} else {
+						} else if (text[i * Math.sqrt(text.length) + j] == "4") {
 							ctx.fillStyle = "cyan";
+						} else {
+							ctx.fillStyle = "yellow";
 						}
 						ctx.fillRect(i * multiplier, j * multiplier, multiplier, multiplier);
 					}

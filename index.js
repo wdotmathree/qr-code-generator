@@ -17,7 +17,7 @@ http.createServer((req, res) => {
 			res.write("Method not allowed");
 			res.end();
 		}
-		const upstream = spawn("python3", ["qr.py"]);
+		const upstream = spawn("./generate");
 		req.on("data", (chunk) => {
 			upstream.stdin.write(chunk);
 		}).on("end", () => {
