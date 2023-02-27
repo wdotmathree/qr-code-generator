@@ -20,26 +20,114 @@ void rect(int x, int y, int w, int h, char c) {
 			res[i * width + j] = c;
 }
 
-void encode_data() {
-	// open file
-	FILE *f = fopen("ecc", "r");
-	// get to the right line (version * 4 + eclevel)
-	int i = version * 4 + (eclevel ^ 1) - 4;
-	while (i--) {
-		while (getc(f) != '\n')
-			;
-	}
-	// read data
-	fscanf(f, "%d %d %d %d %d", specs, specs + 1, specs + 2, specs + 3, specs + 4);
-	fclose(f);
+void _encode_numeric() {
 	// allocate memory
-	int target = specs[1] * specs[2] + specs[3] * specs[4] + specs[0] * (specs[1] + specs[3]);
-	char *encoded = malloc(target);
+	int target = specs[1] * specs[2] + specs[3] * specs[4];
+	char *encoded = calloc(target, 1);
 	// add counters to leave spaces for ecc
 	// c1 = how many g1 blocks left
 	int c1 = specs[1];
 	// c2 = how many bytes left in current block
 	int c2 = specs[2];
+	// add 0b0001 for numeric and the length
+	// curr is current byte
+	int curr;
+	// bit is the next available bit
+	int bit;
+	if (version <= 9) {
+		encoded[0] = 0b00010000 | datalen >> 6;
+		encoded[1] = datalen << 2;
+		curr = 1;
+		bit = 6;
+	} else if (version <= 26) {
+		encoded[0] = 0b00010000 | datalen >> 8;
+		encoded[1] = datalen;
+		curr = 2;
+		bit = 0;
+	} else {
+		encoded[0] = 0b00010000 | datalen >> 10;
+		encoded[1] = datalen >> 2;
+		encoded[2] = datalen << 6;
+		curr = 2;
+		bit = 2;
+	}
+	// add data
+	for (int i = 0; i < datalen; i += 3) {
+		uint16_t num = data[i] - '0';
+		if (i + 1 < datalen)
+			num = num * 10 + data[i + 1] - '0';
+		if (i + 2 < datalen)
+			num = num * 10 + data[i + 2] - '0';
+		if (num >= 100) {
+			if (bit == 7) {
+				encoded[curr] |= num >> 9;
+				encoded[++curr] = num >> 1;
+				encoded[++curr] = num << 7;
+				bit = 1;
+			} else {
+				encoded[curr] |= num >> (bit + 2);
+				encoded[++curr] = num << (6 - bit);
+				bit += 2;
+				if (bit >= 8) {
+					bit -= 8;
+					curr++;
+				}
+			}
+		} else if (num >= 10) {
+			if (bit <= 1) {
+				encoded[curr] |= (num << (1 - bit));
+				bit += 7;
+				if (bit >= 8) {
+					bit -= 8;
+					curr++;
+				}
+			} else {
+				encoded[curr] |= num >> (bit - 1);
+				encoded[++curr] = num << (bit + 1);
+				bit--;
+			}
+		} else {
+			if (bit <= 4) {
+				encoded[curr] |= (num << (4 - bit));
+				bit += 4;
+				if (bit >= 8) {
+					bit -= 8;
+					curr++;
+				}
+			} else {
+				encoded[curr] |= num >> (bit - 4);
+				encoded[++curr] = num << (12 - bit);
+				bit = (bit + 4) & 7;
+			}
+		}
+	}
+	// add terminator
+	if (curr == target - 1 && bit > 4) {
+		// dont need 4 bits
+		encoded[curr] &= 0xff00 >> bit;
+	} else if (bit > 4) {
+		// clear until end of byte and one more
+		encoded[curr++] &= 0xff00 >> bit;
+		encoded[curr++] = 0;
+	} else {
+		// clear until end of byte
+		encoded[curr++] &= 0xf00 >> bit;
+	}
+	// add padding
+	char pad = 0b11101100;
+	while (curr < target) {
+		encoded[curr++] = pad;
+		pad ^= 0b11111101;
+	}
+	free(data);
+	data = encoded;
+	datalen = target;
+}
+
+void _encode_byte() {
+	// allocate memory
+	int target = specs[1] * specs[2] + specs[3] * specs[4];
+	char *encoded = malloc(target);
 	// add 0b0100 for ascii and the length
 	int curr;
 	if (version <= 9) {
@@ -56,14 +144,6 @@ void encode_data() {
 	for (int i = 0; i < datalen; i++) {
 		encoded[curr] |= data[i] >> 4;
 		encoded[++curr] = data[i] << 4;
-		// if there are no more bytes in the current block
-		if (--c2 == 0) {
-			// leave space for ecc
-			curr += specs[0];
-			// if there are no more g1 blocks left switch to g2
-			// otherwise switch to next g1 block
-			c2 = c1-- > 0 ? specs[2] : specs[4];
-		}
 	}
 	// clear low 4 bits to indicate end
 	encoded[curr] &= 0b11110000;
@@ -72,18 +152,44 @@ void encode_data() {
 	while (curr < target - 1) {
 		encoded[++curr] = pad;
 		pad ^= 0b11111101;
-		// if there are no more bytes in the current block
-		if (--c2 == 0) {
-			// leave space for ecc
-			curr += specs[0];
-			// if there are no more g1 blocks left switch to g2
-			// otherwise switch to next g1 block
-			c2 = c1-- > 0 ? specs[2] : specs[4];
-		}
 	}
 	free(data);
 	data = encoded;
 	datalen = target;
+}
+
+void encode_data() {
+	// open file
+	FILE *f = fopen("ecc", "r");
+	// get to the right line (version * 4 + eclevel)
+	int i = version * 4 + (eclevel ^ 1) - 4;
+	while (i--) {
+		while (getc(f) != '\n')
+			;
+	}
+	// read data
+	fscanf(f, "%d %d %d %d %d", specs, specs + 1, specs + 2, specs + 3, specs + 4);
+	fclose(f);
+	// figure out what type of data the input is
+	char alphanumeric = 0;
+	char byte = 0;
+	for (int i = 0; i < datalen; i++) {
+		if (data[i] >= '0' && data[i] <= '9')
+			continue;
+		if ((data[i] >= 'A' && data[i] <= 'Z') || data[i] == ' ' || data[i] == '$' || data[i] == '%' || data[i] == '*' || data[i] == '+' || data[i] == '-' || data[i] == '.' || data[i] == '/' || data[i] == ':')
+			alphanumeric = 1;
+		else if (data[i] >= 'a' && data[i] <= 'z') {
+			byte = 1;
+			break;
+		}
+	}
+	// encode data
+	if (byte)
+		_encode_byte();
+	// else if (alphanumeric)
+	// 	_encode_alphanumeric();
+	else
+		_encode_numeric();
 }
 
 uint8_t _mul2p8(uint8_t a, uint8_t b) {
@@ -166,47 +272,42 @@ void reed_solomon(char *data, int len, int ecclen, char *out) {
 void ecc() {
 	// calculate ecc for each block
 	int curr = 0;
+	data = realloc(data, datalen + specs[0] * (specs[1] + specs[3]));
 	// group 1
 	for (int i = 0; i < specs[1]; i++) {
-		reed_solomon(data + curr, specs[2], specs[0], data + curr + specs[2]);
-		curr += specs[2] + specs[0];
+		reed_solomon(data + curr, specs[2], specs[0], data + datalen + i * specs[0]);
+		curr += specs[2];
 	}
 	// group 2
 	for (int i = 0; i < specs[3]; i++) {
-		reed_solomon(data + curr, specs[4], specs[0], data + curr + specs[4]);
-		curr += specs[4] + specs[0];
+		reed_solomon(data + curr, specs[4], specs[0], data + datalen + (specs[1] + i) * specs[0]);
+		curr += specs[4];
 	}
 }
 
 void interleave() {
 	// allocate memory
-	char *interleaved = malloc(datalen);
+	char *interleaved = malloc(datalen + specs[0] * (specs[1] + specs[3]));
 	int curr = 0;
-	int c = 0;
-	while (c < max(specs[2], specs[4])) {
+	for (int c = 0; c < max(specs[2], specs[4]); c++) {
 		// group 1
 		if (c < specs[2])
 			for (int i = 0; i < specs[1]; i++)
-				interleaved[curr++] = data[i * (specs[2] + specs[0]) + c];
+				interleaved[curr++] = data[i * specs[2] + c];
 		// group 2
 		if (c < specs[4])
 			for (int i = 0; i < specs[3]; i++)
-				interleaved[curr++] = data[specs[1] * (specs[2] + specs[0]) + i * (specs[4] + specs[0]) + c];
-		c++;
+				interleaved[curr++] = data[specs[1] * specs[2] + i * specs[4] + c];
 	}
 	// copy ecc
-	c = 0;
-	while (c < specs[0]) {
-		// group 1
-		for (int i = 0; i < specs[1]; i++)
-			interleaved[curr++] = data[i * (specs[2] + specs[0]) + specs[2] + c];
-		// group 2
-		for (int i = 0; i < specs[3]; i++)
-			interleaved[curr++] = data[specs[1] * (specs[2] + specs[0]) + i * (specs[4] + specs[0]) + specs[4] + c];
-		c++;
+	for (int c = 0; c < specs[0]; c++) {
+		// all groups are the same length
+		for (int i = 0; i < specs[1] + specs[3]; i++)
+			interleaved[curr++] = data[datalen + i * specs[0] + c];
 	}
 	free(data);
 	data = interleaved;
+	datalen = curr;
 }
 
 void quiet() {
@@ -552,7 +653,5 @@ int main() {
 			putchar(res[i * width + j] + '0');
 		}
 	}
-	fprintf(stderr, "%d %d\n", mask, score_mask());
-	fprintf(stderr, "%d %d %d %d\n", _penalty1(), _penalty2(), _penalty3(), _penalty4());
 	return 0;
 }
