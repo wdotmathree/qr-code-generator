@@ -35,16 +35,19 @@ void _encode_numeric() {
 	// bit is the next available bit
 	int bit;
 	if (version <= 9) {
+		// 10 bits
 		encoded[0] = 0b00010000 | datalen >> 6;
 		encoded[1] = datalen << 2;
 		curr = 1;
 		bit = 6;
 	} else if (version <= 26) {
+		// 12 bits
 		encoded[0] = 0b00010000 | datalen >> 8;
 		encoded[1] = datalen;
 		curr = 2;
 		bit = 0;
 	} else {
+		// 14 bits
 		encoded[0] = 0b00010000 | datalen >> 10;
 		encoded[1] = datalen >> 2;
 		encoded[2] = datalen << 6;
@@ -53,20 +56,24 @@ void _encode_numeric() {
 	}
 	// add data
 	for (int i = 0; i < datalen; i += 3) {
+		// group up to 3 digits
 		uint16_t num = data[i] - '0';
 		if (i + 1 < datalen)
 			num = num * 10 + data[i + 1] - '0';
 		if (i + 2 < datalen)
 			num = num * 10 + data[i + 2] - '0';
 		if (num >= 100) {
+			// 10 bits
 			if (bit == 7) {
-				encoded[curr] |= num >> 9;
-				encoded[++curr] = num >> 1;
-				encoded[++curr] = num << 7;
+				// across 3 bytes
+				encoded[curr++] |= num >> 9;
+				encoded[curr++] = num >> 1;
+				encoded[curr] = num << 7;
 				bit = 1;
 			} else {
-				encoded[curr] |= num >> (bit + 2);
-				encoded[++curr] = num << (6 - bit);
+				// across 2 bytes
+				encoded[curr++] |= num >> (bit + 2);
+				encoded[curr] = num << (6 - bit);
 				bit += 2;
 				if (bit >= 8) {
 					bit -= 8;
@@ -74,7 +81,9 @@ void _encode_numeric() {
 				}
 			}
 		} else if (num >= 10) {
+			// 7 bits
 			if (bit <= 1) {
+				// across 1 byte
 				encoded[curr] |= (num << (1 - bit));
 				bit += 7;
 				if (bit >= 8) {
@@ -82,12 +91,15 @@ void _encode_numeric() {
 					curr++;
 				}
 			} else {
-				encoded[curr] |= num >> (bit - 1);
-				encoded[++curr] = num << (bit + 1);
+				// across 2 bytes
+				encoded[curr++] |= num >> (bit - 1);
+				encoded[curr] = num << (9 - bit);
 				bit--;
 			}
 		} else {
+			// 4 bits
 			if (bit <= 4) {
+				// across 1 byte
 				encoded[curr] |= (num << (4 - bit));
 				bit += 4;
 				if (bit >= 8) {
@@ -95,9 +107,127 @@ void _encode_numeric() {
 					curr++;
 				}
 			} else {
-				encoded[curr] |= num >> (bit - 4);
-				encoded[++curr] = num << (12 - bit);
+				// across 2 bytes
+				encoded[curr++] |= num >> (bit - 4);
+				encoded[curr] = num << (12 - bit);
 				bit = (bit + 4) & 7;
+			}
+		}
+	}
+	// add terminator
+	if (curr == target - 1 && bit > 4) {
+		// dont need 4 bits
+		encoded[curr] &= 0xff00 >> bit;
+	} else if (bit > 4) {
+		// clear until end of byte and one more
+		encoded[curr++] &= 0xff00 >> bit;
+		encoded[curr++] = 0;
+	} else {
+		// clear until end of byte
+		encoded[curr++] &= 0xf00 >> bit;
+	}
+	// add padding
+	char pad = 0b11101100;
+	while (curr < target) {
+		encoded[curr++] = pad;
+		pad ^= 0b11111101;
+	}
+	free(data);
+	data = encoded;
+	datalen = target;
+}
+
+uint8_t __conv_alphaval(char c) {
+	if (c >= '0' && c <= '9')
+		return c - '0';
+	if (c >= 'A' && c <= 'Z')
+		return c - 'A' + 10;
+	if (c == ' ')
+		return 36;
+	if (c == '$')
+		return 37;
+	if (c == '%')
+		return 38;
+	if (c == '*')
+		return 39;
+	if (c == '+')
+		return 40;
+	if (c == '-')
+		return 41;
+	if (c == '.')
+		return 42;
+	if (c == '/')
+		return 43;
+	if (c == ':')
+		return 44;
+	return 0xff;
+}
+
+void _encode_alpha() {
+	// allocate memory
+	int target = specs[1] * specs[2] + specs[3] * specs[4];
+	char *encoded = calloc(target, 1);
+	// add 0010 for alphanumeric and the length
+	int curr;
+	int bit;
+	if (version <= 9) {
+		// 9 bits
+		encoded[0] = 0b00100000 | datalen >> 5;
+		encoded[1] = datalen << 3;
+		curr = 1;
+		bit = 5;
+	} else if (version <= 26) {
+		// 11 bits
+		encoded[0] = 0b00100000 | datalen >> 7;
+		encoded[1] = datalen << 1;
+		curr = 1;
+		bit = 7;
+	} else {
+		// 13 bits
+		encoded[0] = 0b00100000 | datalen >> 9;
+		encoded[1] = datalen >> 1;
+		encoded[2] = datalen << 7;
+		curr = 2;
+		bit = 1;
+	}
+	// add data
+	for (int i = 0; i < datalen; i += 2) {
+		int num = __conv_alphaval(data[i]);
+		if (i + 1 < datalen)
+			num = num * 45 + __conv_alphaval(data[i + 1]);
+		if (num >= 45) {
+			// 11 bits
+			if (bit >= 6) {
+				// across 3 bytes
+				encoded[curr++] |= num >> (15 - bit);
+				encoded[curr++] |= num >> (bit - 5);
+				encoded[curr] |= num << (bit + 1);
+				bit -= 5;
+			} else {
+				// across 2 bytes
+				encoded[curr++] |= num >> (bit + 3);
+				encoded[curr] |= num << (5 - bit);
+				bit += 3;
+				if (bit >= 8) {
+					bit -= 8;
+					curr++;
+				}
+			}
+		} else {
+			// 6 bits
+			if (bit > 2) {
+				// across 2 bytes
+				encoded[curr++] |= num >> (bit - 2);
+				encoded[curr] |= num << (10 - bit);
+				bit -= 2;
+			} else {
+				// across 1 byte
+				encoded[curr] |= num << (2 - bit);
+				bit += 6;
+				if (bit >= 8) {
+					bit -= 8;
+					curr++;
+				}
 			}
 		}
 	}
@@ -131,10 +261,12 @@ void _encode_byte() {
 	// add 0b0100 for ascii and the length
 	int curr;
 	if (version <= 9) {
+		// 8 bits
 		encoded[0] = 0b01000000 | datalen >> 4;
 		encoded[1] = datalen << 4;
 		curr = 1;
 	} else {
+		// 16 bits
 		encoded[0] = 0b01000000 | datalen >> 12;
 		encoded[1] = datalen >> 4;
 		encoded[2] = datalen << 4;
@@ -171,13 +303,13 @@ void encode_data() {
 	fscanf(f, "%d %d %d %d %d", specs, specs + 1, specs + 2, specs + 3, specs + 4);
 	fclose(f);
 	// figure out what type of data the input is
-	char alphanumeric = 0;
+	char alpha = 0;
 	char byte = 0;
 	for (int i = 0; i < datalen; i++) {
 		if (data[i] >= '0' && data[i] <= '9')
 			continue;
-		if ((data[i] >= 'A' && data[i] <= 'Z') || data[i] == ' ' || data[i] == '$' || data[i] == '%' || data[i] == '*' || data[i] == '+' || data[i] == '-' || data[i] == '.' || data[i] == '/' || data[i] == ':')
-			alphanumeric = 1;
+		if (__conv_alphaval(data[i]) != 0xff)
+			alpha = 1;
 		else if (data[i] >= 'a' && data[i] <= 'z') {
 			byte = 1;
 			break;
@@ -186,8 +318,8 @@ void encode_data() {
 	// encode data
 	if (byte)
 		_encode_byte();
-	// else if (alphanumeric)
-	// 	_encode_alphanumeric();
+	else if (alpha)
+		_encode_alpha();
 	else
 		_encode_numeric();
 }
@@ -625,6 +757,9 @@ int main() {
 	fread(data, 1, datalen, stdin);
 	// encode data
 	encode_data();
+	for (int i = 0; i < datalen; i++)
+		fprintf(stderr, "%02x", (unsigned char)data[i]);
+	putc(10, stderr);
 	// add error correction
 	ecc();
 	// interleave
