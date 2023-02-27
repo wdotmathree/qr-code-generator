@@ -316,7 +316,7 @@ void encode_data() {
 		}
 	}
 	// encode data
-	if (byte)
+	if (byte || !datalen)
 		_encode_byte();
 	else if (alpha)
 		_encode_alpha();
